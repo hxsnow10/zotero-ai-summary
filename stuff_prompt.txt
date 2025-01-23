@@ -1,0 +1,15 @@
+Below is an excerpt from a research paper titled "{title}".
+Text excerpt:
+--- START OF PAPER ---
+{text}
+--- END OF PAPER ---
+
+Please analyze this text and provide a concise summary. Structure your response using the following points:
+
+1. **Context and Background**: Briefly state the broader problem or knowledge gap this paper addresses.
+2. **Objective**: Explain the primary goal or hypothesis.
+3. **Methodology**: Summarize the methods, techniques, or data used by the authors.
+4. **Key Findings**: Highlight the main results or claims.
+5. **Implications and Future Work**: Discuss why these findings matter and suggest potential directions for further research.
+
+Your summary should be clear, well-organized, and free from personal opinions or additional interpretations that are not supported by the text. Output format uses Markdown, paying attention to indentation (4 spaces).
