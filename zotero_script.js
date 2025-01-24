@@ -2,7 +2,7 @@
  * Generate paper summary using LLM
  * @author Qiuyang Zhang
  * @usage https://github.com/cs-qyzhang/zotero-ai-summary
- * @link https://github.com/cs-qyzhang/zotero-ai-summary
+ * @link https://github.com/windingwind/zotero-actions-tags/discussions/457
  */
 const project_dir = "C:\\Users\\qyzhang\\project\\zotero-ai";
 const python_exe = "C:\\Users\\qyzhang\\miniconda3\\envs\\zotero-ai\\python.exe";
