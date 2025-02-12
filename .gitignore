@@ -1,2 +1,7 @@
+__pycache__/
 summary/
+uploads/
+test.sh
+*.db
 *.log
+poetry.lock

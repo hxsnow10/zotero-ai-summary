@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "zotero-ai-summary"
+version = "0.1.0"
+description = "Academic paper summarizer"
+authors = ["Qiuyang Zhang <cs.qyzhang@qq.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.8"
+uvicorn = "^0.34.0"
+markdown-it-py = "^3.0.0"
+langchain = "^0.3.17"
+langchain-community = "^0.3.16"
+langchain-core = "^0.3.34"
+langchain-openai = "^0.3.4"
+pypdf = "^5.2.0"
+python-multipart = "^0.0.20"
+
+
+[[tool.poetry.source]]
+name = "mirrors"
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/"
+priority = "primary"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

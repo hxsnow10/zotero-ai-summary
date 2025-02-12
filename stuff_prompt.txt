@@ -11,5 +11,6 @@ Please analyze this text and provide a concise summary. Structure your response 
 3. **Methodology**: Summarize the methods, techniques, or data used by the authors.
 4. **Key Findings**: Highlight the main results or claims.
 5. **Implications and Future Work**: Discuss why these findings matter and suggest potential directions for further research.
+6. **Critique**: Give the flaws and limitations of the paper.
 
 Your summary should be clear, well-organized, and free from personal opinions or additional interpretations that are not supported by the text. Output format uses Markdown, paying attention to indentation (4 spaces).

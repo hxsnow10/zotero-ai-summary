@@ -90,10 +90,19 @@ class PaperSummarizer:
 
     def post_process_summary(self, summary: str) -> str:
         """Post-process the summary"""
-        if summary.startswith("```"):
-            summary = "\n".join(summary.splitlines()[1:])
-        if summary.endswith("```"):
-            summary = "\n".join(summary.splitlines()[:-1])
+        lines = summary.strip().splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+            while lines[0] == "":
+                lines = lines[1:]
+            while not lines[-1].startswith("```"):
+                lines = lines[:-1]
+            lines = lines[:-1]
+        if "summary" in lines[0].lower() or "overview" in lines[0].lower():
+            lines = lines[1:]
+            while lines[0] == "":
+                lines = lines[1:]
+        summary = "\n".join(lines[:-1]).strip()
         return summary
 
     def summarize_paper(self, title: str, pdf_path: Path) -> str:
@@ -131,6 +140,9 @@ class PaperSummarizer:
                 f"Summary time: {end_time - start_time} seconds, input length: {len(full_text)}, output length: {len(summary['output_text'])}"
             )
             summary = self.post_process_summary(summary["output_text"])
+            md_path = Path(os.path.dirname(__file__), f"summary/{title}.md")
+            with open(md_path, "w", encoding="utf-8") as f:
+                f.write(summary)
             md = MarkdownIt()
             summary = md.render(summary)
             summary = f"<h2>AI Generated Summary ({self.model_name})</h2>" + summary
