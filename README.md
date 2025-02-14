@@ -4,25 +4,13 @@
 
 Automatically summarize academic papers and generate notes in Zotero using an LLM.
 
-工作流程：以 [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) 脚本的形式实现。在 zotero 中新增论文时，zotero-actions-tags 触发 JavaScript 脚本，获取论文的 PDF 文件地址和论文名，并调用 python 脚本生成论文总结。在 python 脚本中，使用 langchain 对 PDF 解析并分割（pypdf），之后调用 LLM API 总结论文，最后将总结写入到文件中。JavaScript 脚本等待 python 脚本执行完后从文件中读取总结，并生成 zotero 笔记。
+工作流程：以 [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) 脚本的形式实现。在 zotero 中新增论文时，zotero-actions-tags 触发 JavaScript 脚本，获取论文的 PDF 文件地址和论文名，并向服务器发送 PDF 进行解析与分割。之后本地调用 LLM API 总结论文。获得总结后将生成的 markdown 发送给服务器转换为 html。最后将 html 总结写入到论文笔记中。
 
-Workflow: this tool is implemented as a script for [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags). When a new paper is added to Zotero, the zotero-actions-tags plugin triggers a JavaScript script to retrieve the PDF file path and paper title. It then calls a Python script to generate the paper summary. The Python script uses LangChain to parse and split the PDF (via pypdf), invokes an LLM API to create a summary, and saves the summary to a file. Once the Python script completes, the JavaScript script reads the summary from the file and creates a note in Zotero.
+Workflow: this tool is implemented as a script for [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags). When a new paper is added to Zotero, the zotero-actions-tags plugin triggers a JavaScript script to retrieve the PDF file path and paper title. It then sends the PDF to a server for analysis and segmentation. Next, the local system calls the LLM API to generate a summary of the paper. Once the summary is obtained, the generated markdown is sent to the server to be converted into HTML. Finally, the HTML summary is written into the paper's note.
 
 ![example](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124100826.png)
 
-## Setup
-
-### Python Setup
-
-```bash
-conda create -n zotero-ai-summary python=3.12
-conda activate zotero-ai-summary
-git clone https://github.com/cs-qyzhang/zotero-ai-summary.git
-cd zotero-ai-summary
-pip install -r ./requirements.txt
-```
-
-### Zotero Setup
+## 部署 | Setup
 
 安装 [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) 插件，并按照下图配置。
 
@@ -34,56 +22,50 @@ Install the [zotero-actions-tags](https://github.com/windingwind/zotero-actions-
 
 ## Configuration
 
+关键点：如果使用 [ZotMoov](https://github.com/wileyyugioh/zotmoov) 或 [ZotFile](https://github.com/jlegewie/zotfile) 把论文保存在 OneDrive 等同步盘上，将 `only_link_file` 设为 `true`；根据想要使用的大模型 API 配置 `openaiBaseUrl`、`modelName` 和 `apiKey`；将 `chunkSize` 调整为模型上下文长度；将 `stuffPrompt`、`mapPrompt` 和 `reducePrompt` 翻译成你的语言，注意保留其中的 `{title}` 和 `{text}` 不变。
+
+TLDR: If you use [ZotMoov](https://github.com/wileyyugioh/zotmoov) or [ZotFile](https://github.com/jlegewie/zotfile) to save your papers on OneDrive or other synchronized drives, set `only_link_file` to `true`; configure `openaiBaseUrl`, `modelName`, and `apiKey` according to the LLM API you intend to use; adjust `chunkSize` to match the model's context length; translate `stuffPrompt`, `mapPrompt`, and `reducePrompt` into your preferred language, ensuring that the placeholders `{title}` and `{text}` remain unchanged.
+
 在 `zotero_script.js` 代码的顶端包含了一些配置，如下所示。
 
 At the beginning of the `zotero_script.js` file, you’ll find some configurable options:
 
 ```js
-const project_dir = "C:\\Users\\qyzhang\\project\\zotero-ai-summary";
-const python_exe = "C:\\Users\\qyzhang\\miniconda3\\envs\\zotero-ai-summary\\python.exe";
-const pythonScript = `${project_dir}\\paper_summary.py`;
-const only_link_file = true;
+const serverUrl = "https://paper_summarizer.jianyue.tech";
+const only_link_file = false;
 const timeout = 30;
+const openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const modelName = "qwen-plus-latest";
+const apiKey = "sk-xxxxxxxxxxxxx";
+const chunkSize = 64000;
+const chunkOverlap = 1000;
+const stuffPrompt = "";
+const mapPrompt = "";
+const reducePrompt = "";
 ```
 
-- `project_dir`：`git clone` 后的项目地址
-- `python_exe`：conda 环境中的 python 地址
-- `only_link_file`：配合 [ZotMoov](https://github.com/wileyyugioh/zotmoov) 或 [ZotFile](https://github.com/jlegewie/zotfile) 使用。如果使用这两个或类似的插件将论文 PDF 以 Zotero 的 "Link to File" 形式保存，则应设置 `only_link_file` 为 `true`，否则设置为 `false`。
-- `timeout`：配合 [ZotMoov](https://github.com/wileyyugioh/zotmoov) 或 [ZotFile](https://github.com/jlegewie/zotfile) 使用。在新增论文时，最多等待多少秒后检查 PDF 是否下载完成。
+- **`serverUrl`**：用于解析 PDF 文件和将总结后的 markdown 转换为 html 的服务器地址。默认为作者公开的服务器。**如果你需要对敏感文件总结，推荐自己部署**，只需 clone 本仓库后执行 `python server.py` 即可。
+- **`only_link_file`**：配合 [ZotMoov](https://github.com/wileyyugioh/zotmoov) 或 [ZotFile](https://github.com/jlegewie/zotfile) 使用。如果使用这两个或类似的插件将论文 PDF 以 Zotero 的 "Link to File" 形式保存，则应设置 `only_link_file` 为 `true`，否则设置为 `false`。
+- **`timeout`**：配合 [ZotMoov](https://github.com/wileyyugioh/zotmoov) 或 [ZotFile](https://github.com/jlegewie/zotfile) 使用。在新增论文时，最多等待多少秒后检查 PDF 是否下载完成。
+- **`openaiBaseUrl`**：OpenAI 兼容的 api 地址。具体的地址取决于使用的模型提供商，默认是通义千问，详见 <https://www.aliyun.com/product/bailian>。
+- **`modelName`**：调用模型 API 时提供的模型名。
+- **`apiKey`**：LLM 的 api key。
+- **`chunkSize`**：模型的上下文大小。超过上下文的 PDF 文档需要拆分成多个分片，使用 map-reduce 方案总结。
+- **`chunkOverlap`**：map-reduce 方案下分片间重合的大小。
+- **`stuffPrompt`**：当 PDF 文档没有超出模型上下文时使用的提示词。
+- **`mapPrompt`**：map-reduce 方案下 map 阶段使用的提示词。
+- **`reducePrompt`**：map-reduce 方案下 reduce 阶段使用的提示词。
 
 <br>
 
-- `project_dir`: The directory where the repository was cloned.
-- `python_exe`: The path to the Python executable in the Conda environment.
-- `only_link_file`: Set this to `true` if you manage PDFs as "Link to File" using  - [ZotMoov](https://github.com/wileyyugioh/zotmoov) or [ZotFile](https://github.com/jlegewie/zotfile). Otherwise, set it to `false`.
-- `timeout`: Used in conjunction with [ZotMoov](https://github.com/wileyyugioh/zotmoov) or [ZotFile](https://github.com/jlegewie/zotfile). Specifies the maximum number of seconds to wait after adding a paper to check if the PDF download is complete.
-
-### LLM API
-
-在想用的大模型提供商（ChatGPT/Qwen/DeepSeek...）充钱并获取 OpenAI 兼容的 API key。编辑 `~/.config/llm.json` 文件（以下为 DeepSeek 示例）：
-
-Sign up with your preferred LLM provider (e.g., ChatGPT, Claude, DeepSeek) to obtain an OpenAI-compatible API key, then create or edit the `~/.config/llm.json` file. Below is an example for DeepSeek:
-
-```json
-{
-  "name": "deekseek-v3",
-  "model": "deepseek-chat",
-  "base_url": "https://api.deepseek.com/v1",
-  "api_key": "sk-xxxxxxxxx",
-  "context_length": 64000
-}
-```
-
-其中的 `name` 是在总结笔记中显示的模型名，`model` 是真正的模型名。
-
-`name` is the model name displayed in the summary note, and `model` is the actual model name.
-
-### LLM Prompt
-
-默认使用的总结提示词是由 ChatGPT-o1 生成的英文提示词。可以修改 `stuff_prompt.txt`、`map_prompt.txt` 和 `reduce_prompt.txt` 三个文件来自定义提示词。
-
-By default, English summarization prompts generated by ChatGPT-o1 are used. You can customize these prompts by modifying the `stuff_prompt.txt`, `map_prompt.txt`, and `reduce_prompt.txt` files.
-
-如果论文字符数小于模型的上下文长度，则使用 `stuff_prompt.txt` 将论文内容一次性输入获取总结；否则将论文分割为多个 chunk，对于每一个 chunk 先使用 `map_prompt.txt` 生成单个 chunk 的总结，最后使用 `reduce_prompt.txt` 合并每个 chunk 总结并生成最终的总结。
-
-If the paper's content fits within the model's context length, the `stuff_prompt.txt` file is used to process it all at once. For longer papers exceed model's context length, the content is split into chunks. Each chunk is summarized using the `map_prompt.txt` prompt, and the chunk summaries are combined using the `reduce_prompt.txt` prompt to create the final summary.
+- **`serverUrl`**: The server URL for parsing PDF files and converting the summarized markdown into HTML. Defaults to the author's public server. **If you need to summarize sensitive files, it's recommended to deploy your own server**; simply clone this repository and run `python server.py`.
+- **`only_link_file`**: Use this in conjunction with [ZotMoov](https://github.com/wileyyugioh/zotmoov) or [ZotFile](https://github.com/jlegewie/zotfile). If you save PDF papers in Zotero as "Link to File" using these (or similar) plugins, set `only_link_file` to `true`; otherwise, set it to `false`.
+- **`timeout`**: Also used with [ZotMoov](https://github.com/wileyyugioh/zotmoov) or [ZotFile](https://github.com/jlegewie/zotfile). This parameter specifies the maximum number of seconds to wait after adding a new paper before checking whether the PDF download is complete.
+- **`openaiBaseUrl`**: The API endpoint compatible with OpenAI. The specific URL depends on the model provider you are using; by default, it is Qwen, see <https://www.aliyun.com/product/bailian>.
+- **`modelName`**: The model name provided when calling the API.
+- **`apiKey`**: The API key for the LLM.
+- **`chunkSize`**: The model's context size. PDF documents that exceed the context window must be split into multiple segments and summarized using a map-reduce approach.
+- **`chunkOverlap`**: The overlap size between segments when using the map-reduce approach.
+- **`stuffPrompt`**: The prompt used when the entire PDF document fits within the model’s context window.
+- **`mapPrompt`**: The prompt used during the map phase of the map-reduce approach.
+- **`reducePrompt`**: The prompt used during the reduce phase of the map-reduce approach.
