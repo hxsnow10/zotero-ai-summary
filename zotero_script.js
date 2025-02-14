@@ -1,141 +1,275 @@
 /**
- * Generate paper summary using HTTP API
+ * Generate paper summary using LLM
  * @author Qiuyang Zhang
  * @usage https://github.com/cs-qyzhang/zotero-ai-summary
  */
 
-const serverUrl = "https://paper.jianyue.tech/upload";  // 你的论文总结服务器地址
-const secret = "xxxxx";
-const only_link_file = true;
+/************* Configurations Start *************/
+// Server URL used to parse PDF and convert Markdown to HTML
+const serverUrl = "https://paper_summarizer.jianyue.tech";
+// Set this to true if you manage PDFs as "Link to File" using ZotMoov or ZotFile. Otherwise, set it to false
+const only_link_file = false;
+// Used in conjunction with ZotMoov or ZotFile. Specifies the maximum number of seconds to wait after adding a paper to check if the PDF download is complete.
 const timeout = 30;
+// OpenAI-compatible API base URL
+const openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+// Model name
+const modelName = "qwen-plus-latest";
+// API key
+const apiKey = "sk-xxxxxxxxxxxxx";
+// Model's max context length
+const chunkSize = 64000;
+// The overlap between chunks of text to process
+const chunkOverlap = 1000;
+
+// The following prompts are used to generate the summary. You can modify them
+// to change the summary language and style. The simplest way is translate the
+// prompts to your language. {title} and {text} are placeholders for the actual
+// title and text of the paper.
+
+// Prompt for "stuff" method, which is used when there is only one split
+const stuff_prompt = `Below is an excerpt from a research paper titled "{title}".
+Text excerpt:
+--- START OF PAPER ---
+{text}
+--- END OF PAPER ---
+
+Please analyze this text and provide a concise summary. Structure your response using the following points:
+
+1. **Context and Background**: Briefly state the broader problem or knowledge gap this paper addresses.
+2. **Objective**: Explain the primary goal or hypothesis.
+3. **Methodology**: Summarize the methods, techniques, or data used by the authors.
+4. **Key Findings**: Highlight the main results or claims.
+5. **Implications and Future Work**: Discuss why these findings matter and suggest potential directions for further research.
+6. **Critique**: Give the flaws and limitations of the paper.
+
+Your summary should be clear, well-organized, and free from personal opinions or additional interpretations that are not supported by the text. Output format uses Markdown, paying attention to indentation (4 spaces).`;
+
+// Prompt for "map-reduce" method, which is used when there are multiple splits
+const map_prompt = `You are given a portion of a research paper "{title}" (a “chunk” of text). Your task is to produce a succinct and accurate summary of this chunk. Focus on the core ideas, methods, and any critical results or takeaways presented in this section.
+
+Chunk content:
+--- START OF CHUNK ---
+{text}
+--- END OF CHUNK ---
+
+Structure your response using the following points:
+
+1. **Context and Background**: Briefly state the broader problem or knowledge gap this paper addresses.
+2. **Objective**: Explain the primary goal or hypothesis.
+3. **Methodology**: Summarize the methods, techniques, or data used by the authors.
+4. **Key Findings**: Highlight the main results or claims.
+5. **Implications and Future Work**: Discuss why these findings matter and suggest potential directions for further research.
+6. **Critique**: Give the flaws and limitations of the paper.
+
+Guidelines:
+- Be concise and neutral in tone.
+- Do not include information outside of what appears in the chunk.
+- If certain details (e.g., references or statistics) are not explicitly stated in the chunk, do not infer or fabricate them.
+- Use bullet points or short paragraphs as appropriate.
+- Output format uses standard Markdown, paying attention to indentation (4 spaces).`;
+
+// Prompt for "reduce" in "map-reduce" method
+const reduce_prompt = `You are given multiple summaries of research paper "{title}", each corresponding to a different chunk of a larger text. Your task is to synthesize these summaries into a single, cohesive overview of the entire paper.
+
+Individual chunk summaries:
+--- START OF CHUNK SUMMARIES ---
+{text}
+--- END OF CHUNK SUMMARIES ---
+
+Please combine these partial summaries into one organized summary using the following points:
+
+1. **Context and Background**: Briefly state the broader problem or knowledge gap this paper addresses.
+2. **Objective**: Explain the primary goal or hypothesis.
+3. **Methodology**: Summarize the methods, techniques, or data used by the authors.
+4. **Key Findings**: Highlight the main results or claims.
+5. **Implications and Future Work**: Discuss why these findings matter and suggest potential directions for further research.
+6. **Critique**: Give the flaws and limitations of the paper.
+
+Guidelines:
+- Avoid duplicating information found in multiple chunk summaries.
+- Use neutral, concise language.
+- Do not invent new details not found in the chunk summaries.
+- Output format uses standard Markdown, paying attention to indentation (4 spaces).`;
+/************* Configurations End *************/
+
+
+function formatString(str, params) {
+    return str.replace(/{([^{}]*)}/g, (match, key) => {
+        return params[key] || match;
+    });
+}
 
 function check_attachment(attachment) {
     return attachment && (!only_link_file ||
         attachment.attachmentLinkMode === Zotero.Attachments.LINK_MODE_LINKED_FILE);
 }
 
-if (item) return;
-for (const item of items) {
-    try {
-        if (!item.isRegularItem() || !item.isTopLevelItem()) {
-            continue;
-        }
+if (!item) return;
 
-        // 检查是否已经生成过总结
-        let noteIds = item.getNotes();
-        let summary_exist = false;
-        for (const id of noteIds) {
-            let note = Zotero.Items.get(id);
-            let content = note.getNote();
-            if (content.search("<h2>AI Generated Summary") >= 0) {
-                summary_exist = true;
-                break;
-            }
-        }
-        if (summary_exist) {
-            continue;
-        }
+let progressWindow = undefined;
+let itemProgress = undefined;
+const window = require('window');
 
-        // 获取 PDF 附件
-        let pdfAttachment = await item.getBestAttachment();
-        if (!check_attachment(pdfAttachment)) {
-            let i = 0;
-            while (i < timeout && (!check_attachment(pdfAttachment))) {
-                await new Promise(r => setTimeout(r, 1000));
-                pdfAttachment = await item.getBestAttachment();
-                i++;
-            }
-        }
-        if (!pdfAttachment) {
-            Zotero.debug("No PDF attachment found for the selected item.");
-            continue;
-        }
-
-        let title = item.getField('title');
-        let link = item.getField('url') || "";  // 获取论文的链接（如果有）
-        let pdfPath = await pdfAttachment.getFilePath();
-        const basePath = pdfPath.replace(/^.*[\\/]/, "");
-
-        // 读取 PDF 文件，返回的是 Uint8Array（若返回 ArrayBuffer，请自行转换）
-        let fileData = await IOUtils.read(pdfPath);
-        if (fileData instanceof ArrayBuffer) {
-            fileData = new Uint8Array(fileData);
-        }
-
-        // 构造 multipart/form-data 请求体
-        const boundary = "----WebKitFormBoundary" + Math.random().toString(36).substring(2);
-        const CRLF = "\r\n";
-        const encoder = new TextEncoder();
-
-        // 构造各个部分的文本
-        const partTitle = `--${boundary}${CRLF}` +
-                          `Content-Disposition: form-data; name="title"${CRLF}${CRLF}` +
-                          `${title}${CRLF}`;
-        const partLink = `--${boundary}${CRLF}` +
-                         `Content-Disposition: form-data; name="link"${CRLF}${CRLF}` +
-                         `${link}${CRLF}`;
-        const partSecret = `--${boundary}${CRLF}` +
-                         `Content-Disposition: form-data; name="secret"${CRLF}${CRLF}` +
-                         `${secret}${CRLF}`;
-        const partFileHeader = `--${boundary}${CRLF}` +
-                               `Content-Disposition: form-data; name="pdf"; filename="${basePath}"${CRLF}` +
-                               `Content-Type: application/pdf${CRLF}${CRLF}`;
-        const partFooter = `${CRLF}--${boundary}--${CRLF}`;
-
-        // 将文本部分转换为 Uint8Array
-        const partTitleBytes = encoder.encode(partTitle);
-        const partLinkBytes = encoder.encode(partLink);
-        const partSecretBytes = encoder.encode(partSecret);
-        const partFileHeaderBytes = encoder.encode(partFileHeader);
-        const partFooterBytes = encoder.encode(partFooter);
-
-        // 计算总长度并创建一个新的 Uint8Array 保存最终的请求体数据
-        const totalLength = partTitleBytes.length + partLinkBytes.length +
-                            partSecretBytes.length + partFileHeaderBytes.length +
-                            fileData.length + partFooterBytes.length;
-        const bodyBuffer = new Uint8Array(totalLength);
-        let offset = 0;
-        bodyBuffer.set(partTitleBytes, offset);
-        offset += partTitleBytes.length;
-        bodyBuffer.set(partLinkBytes, offset);
-        offset += partLinkBytes.length;
-        bodyBuffer.set(partSecretBytes, offset);
-        offset += partSecretBytes.length;
-        bodyBuffer.set(partFileHeaderBytes, offset);
-        offset += partFileHeaderBytes.length;
-        bodyBuffer.set(fileData, offset);
-        offset += fileData.length;
-        bodyBuffer.set(partFooterBytes, offset);
-
-        // 发送 POST 请求
-        const response = await fetch(serverUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": `multipart/form-data; boundary=${boundary}`
-            },
-            body: bodyBuffer.buffer
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP Error: ${response.status}`);
-        }
-
-        let result = await response.json();
-        let summary = result.summary || "";
-        let modelName = result.model_name || "Unknown Model";
-        let cached = result.cached ? "(Cached)" : "";
-
-        if (!summary) {
-            throw new Error("Failed to retrieve a valid summary.");
-        }
-
-        // 生成新的笔记
-        let newNote = new Zotero.Item('note');
-        newNote.setNote(summary);
-        newNote.parentID = item.id;
-        await newNote.saveTx();
-
-    } catch (error) {
-        Zotero.debug(`Error processing item: ${error.message}`);
+try {
+    if (!item.isRegularItem() || !item.isTopLevelItem()) {
+        return;
     }
+
+    let title = item.getField('title');
+    let link = item.getField('url') || "";
+
+    const shortTitle = title.length > 50 ? title.substring(0, 50) + "..." : title;
+    progressWindow = new Zotero.ProgressWindow({
+        "closeOnClick": false,
+    });
+    progressWindow.addDescription(shortTitle);
+    itemProgress = new progressWindow.ItemProgress();
+    itemProgress.setItemTypeAndIcon("note");
+    itemProgress.setText("Retrieving PDF...");
+    progressWindow.show();
+
+    // Check if the summary already exists
+    let noteIds = item.getNotes();
+    let summary_exist = false;
+    for (const id of noteIds) {
+        let note = Zotero.Items.get(id);
+        let content = note.getNote();
+        if (content.search("<h2>AI Generated Summary") >= 0) {
+            summary_exist = true;
+            break;
+        }
+    }
+    if (summary_exist) {
+        itemProgress.setProgress(100);
+        itemProgress.setText("Summary already exists.");
+        progressWindow.startCloseTimer(5000);
+        return;
+    }
+
+    // Get PDF attachment
+    let pdfAttachment = await item.getBestAttachment();
+    if (!check_attachment(pdfAttachment)) {
+        let i = 0;
+        while (i < timeout && (!check_attachment(pdfAttachment))) {
+            await new Promise(r => setTimeout(r, 1000));
+            pdfAttachment = await item.getBestAttachment();
+            i++;
+        }
+    }
+    if (!pdfAttachment) {
+        throw new Error("No PDF attachment found for the selected item.");
+    }
+
+    let pdfPath = await pdfAttachment.getFilePath();
+    const basePath = pdfPath.replace(/^.*[\\/]/, "");
+
+    // Read PDF
+    let fileData = await IOUtils.read(pdfPath);
+    if (fileData instanceof ArrayBuffer) {
+        fileData = new Uint8Array(fileData);
+    }
+
+    itemProgress.setProgress(20);
+    itemProgress.setText("Parsing PDF...");
+
+    // Step 1: Parse PDF
+    const formData = new window.FormData();
+    formData.append('title', title);
+    formData.append('link', link);
+    formData.append('chunk_size', chunkSize);
+    formData.append('chunk_overlap', chunkOverlap);
+    formData.append('pdf', new Blob([fileData], { type: 'application/pdf' }), basePath);
+
+    const parseResponse = await fetch(`${serverUrl}/parse_pdf`, {
+        method: "POST",
+        body: formData
+    });
+    if (!parseResponse.ok) {
+        throw new Error(`${serverUrl} HTTP Error: ${parseResponse.status} ${parseResponse.statusText}`);
+    }
+    const parseResult = await parseResponse.json();
+    const splits = parseResult.splits;
+
+    // Step 2: Generate summary
+    itemProgress.setProgress(40);
+    itemProgress.setText("Generating summary...");
+    const markdownSummary = await summarizeText(title, splits);
+
+    // Step 3: Convert to HTML
+    itemProgress.setProgress(80);
+    itemProgress.setText("Formatting summary...");
+    const htmlFormData = new window.FormData();
+    htmlFormData.append('title', title);
+    htmlFormData.append('markdown', markdownSummary);
+    htmlFormData.append('model_name', modelName);
+
+    const htmlResponse = await fetch(`${serverUrl}/md_to_html`, {
+        method: "POST",
+        body: htmlFormData
+    });
+    if (!htmlResponse.ok) {
+        throw new Error(`${serverUrl} HTTP Error: ${htmlResponse.status} ${htmlResponse.statusText}`);
+    }
+    const htmlResult = await htmlResponse.json();
+
+    // Create note with HTML content
+    let newNote = new Zotero.Item('note');
+    newNote.setNote(htmlResult.html);
+    newNote.parentID = item.id;
+    await newNote.saveTx();
+
+    itemProgress.setProgress(100);
+    itemProgress.setText("Summary generated successfully!");
+    progressWindow.startCloseTimer(5000);
+} catch (error) {
+    itemProgress.setError();
+    itemProgress.setText(`Error processing item: ${error.message}`);
+    progressWindow.addDescription("");
+    progressWindow.startCloseTimer(5000);
+}
+
+async function openaiRequest(message) {
+    const response = await fetch(`${openaiBaseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: modelName,
+            messages: [{
+                role: 'user',
+                content: message
+            }],
+            temperature: 0.3
+        })
+    });
+    if (!response.ok) {
+        throw new Error(`${openaiBaseUrl} HTTP Error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    if (!result.choices) {
+        throw new Error("LLM API call failed!");
+    }
+    return result.choices[0].message.content;
+}
+
+async function summarizeText(title, splits) {
+    // If only one split, use "stuff" method
+    if (splits.length === 1) {
+        const response = await openaiRequest(formatString(stuff_prompt, { title: title, text: splits[0].content }));
+        return response;
+    }
+
+    // For multiple splits, use map-reduce method
+    const summaries = await Promise.all(splits.map(async split => {
+        const response = await openaiRequest(formatString(map_prompt, { title: title, text: split.content }));
+        return response;
+    }));
+    itemProgress.setProgress(60);
+    const combinedSummary = summaries.join('\n\n');
+    const response = await openaiRequest(formatString(reduce_prompt, { title: title, text: combinedSummary }));
+    return response;
 }

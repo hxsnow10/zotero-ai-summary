@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Academic paper summarizer"
 authors = ["Qiuyang Zhang <cs.qyzhang@qq.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -16,6 +17,7 @@ langchain-core = "^0.3.34"
 langchain-openai = "^0.3.4"
 pypdf = "^5.2.0"
 python-multipart = "^0.0.20"
+slowapi = "^0.1.9"
 
 
 [[tool.poetry.source]]
