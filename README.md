@@ -20,7 +20,7 @@ Install the [zotero-actions-tags](https://github.com/windingwind/zotero-actions-
 
 ![edit action](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124095407.png)
 
-## Configuration
+## 配置 | Configuration
 
 关键点：如果使用 [ZotMoov](https://github.com/wileyyugioh/zotmoov) 或 [ZotFile](https://github.com/jlegewie/zotfile) 把论文保存在 OneDrive 等同步盘上，将 `only_link_file` 设为 `true`；根据想要使用的大模型 API 配置 `openaiBaseUrl`、`modelName` 和 `apiKey`；将 `chunkSize` 调整为模型上下文长度；将 `stuffPrompt`、`mapPrompt` 和 `reducePrompt` 翻译成你的语言，注意保留其中的 `{title}` 和 `{text}` 不变。
 
@@ -31,17 +31,17 @@ TLDR: If you use [ZotMoov](https://github.com/wileyyugioh/zotmoov) or [ZotFile](
 At the beginning of the `zotero_script.js` file, you’ll find some configurable options:
 
 ```js
-const serverUrl = "https://paper_summarizer.jianyue.tech";
-const only_link_file = false;
-const timeout = 30;
-const openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const modelName = "qwen-plus-latest";
-const apiKey = "sk-xxxxxxxxxxxxx";
-const chunkSize = 64000;
-const chunkOverlap = 1000;
-const stuffPrompt = "";
-const mapPrompt = "";
-const reducePrompt = "";
+let serverUrl = "https://paper_summarizer.jianyue.tech";
+let only_link_file = false;
+let timeout = 30;
+let openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+let modelName = "qwen-plus-latest";
+let apiKey = "sk-xxxxxxxxxxxxx";
+let chunkSize = 64000;
+let chunkOverlap = 1000;
+let stuffPrompt = "";
+let mapPrompt = "";
+let reducePrompt = "";
 ```
 
 - **`serverUrl`**：用于解析 PDF 文件和将总结后的 markdown 转换为 html 的服务器地址。默认为作者公开的服务器。**如果你需要对敏感文件总结，推荐自己部署**，只需 clone 本仓库后执行 `python server.py` 即可。

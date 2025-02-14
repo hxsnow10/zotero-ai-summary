@@ -6,21 +6,21 @@
 
 /************* Configurations Start *************/
 // Server URL used to parse PDF and convert Markdown to HTML
-const serverUrl = "https://paper_summarizer.jianyue.tech";
+let serverUrl = "https://paper_summarizer.jianyue.tech";
 // Set this to true if you manage PDFs as "Link to File" using ZotMoov or ZotFile. Otherwise, set it to false
-const only_link_file = false;
+let only_link_file = false;
 // Used in conjunction with ZotMoov or ZotFile. Specifies the maximum number of seconds to wait after adding a paper to check if the PDF download is complete.
-const timeout = 30;
+let timeout = 30;
 // OpenAI-compatible API base URL
-const openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+let openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 // Model name
-const modelName = "qwen-plus-latest";
+let modelName = "qwen-plus-latest";
 // API key
-const apiKey = "sk-xxxxxxxxxxxxx";
+let apiKey = "sk-xxxxxxxxxxxxx";
 // Model's max context length
-const chunkSize = 64000;
+let chunkSize = 64000;
 // The overlap between chunks of text to process
-const chunkOverlap = 1000;
+let chunkOverlap = 1000;
 
 // The following prompts are used to generate the summary. You can modify them
 // to change the summary language and style. The simplest way is translate the
@@ -28,7 +28,7 @@ const chunkOverlap = 1000;
 // title and text of the paper.
 
 // Prompt for "stuff" method, which is used when there is only one split
-const stuff_prompt = `Below is an excerpt from a research paper titled "{title}".
+let stuff_prompt = `Below is an excerpt from a research paper titled "{title}".
 Text excerpt:
 --- START OF PAPER ---
 {text}
@@ -46,7 +46,7 @@ Please analyze this text and provide a concise summary. Structure your response 
 Your summary should be clear, well-organized, and free from personal opinions or additional interpretations that are not supported by the text. Output format uses Markdown, paying attention to indentation (4 spaces).`;
 
 // Prompt for "map-reduce" method, which is used when there are multiple splits
-const map_prompt = `You are given a portion of a research paper "{title}" (a “chunk” of text). Your task is to produce a succinct and accurate summary of this chunk. Focus on the core ideas, methods, and any critical results or takeaways presented in this section.
+let map_prompt = `You are given a portion of a research paper "{title}" (a “chunk” of text). Your task is to produce a succinct and accurate summary of this chunk. Focus on the core ideas, methods, and any critical results or takeaways presented in this section.
 
 Chunk content:
 --- START OF CHUNK ---
@@ -70,7 +70,7 @@ Guidelines:
 - Output format uses standard Markdown, paying attention to indentation (4 spaces).`;
 
 // Prompt for "reduce" in "map-reduce" method
-const reduce_prompt = `You are given multiple summaries of research paper "{title}", each corresponding to a different chunk of a larger text. Your task is to synthesize these summaries into a single, cohesive overview of the entire paper.
+let reduce_prompt = `You are given multiple summaries of research paper "{title}", each corresponding to a different chunk of a larger text. Your task is to synthesize these summaries into a single, cohesive overview of the entire paper.
 
 Individual chunk summaries:
 --- START OF CHUNK SUMMARIES ---
@@ -110,6 +110,10 @@ if (!item) return;
 let progressWindow = undefined;
 let itemProgress = undefined;
 const window = require('window');
+
+if (openaiBaseUrl.endsWith('/')) {
+    openaiBaseUrl = openaiBaseUrl.slice(0, -1);
+}
 
 try {
     if (!item.isRegularItem() || !item.isTopLevelItem()) {
