@@ -43,10 +43,10 @@ Please analyze this text and provide a concise summary. Structure your response 
 5. **Implications and Future Work**: Discuss why these findings matter and suggest potential directions for further research.
 6. **Critique**: Give the flaws and limitations of the paper.
 
-Your summary should be clear, well-organized, and free from personal opinions or additional interpretations that are not supported by the text. Output format uses Markdown.`;
+Your summary should be clear, well-organized, and free from personal opinions or additional interpretations that are not supported by the text. Output format uses Markdown, paying attention to indentation (4 spaces).`;
 
 // Prompt for "map-reduce" method, which is used when there are multiple splits
-let map_prompt = `You are given a portion of a research paper "{title}" (a “chunk” of text). Your task is to produce a succinct and accurate summary of this chunk. Focus on the core ideas, methods, and any critical results or takeaways presented in this section.
+let map_prompt = `You are given a portion of a research paper "{title}" (a "chunk" of text). Your task is to produce a succinct and accurate summary of this chunk. Focus on the core ideas, methods, and any critical results or takeaways presented in this section.
 
 Chunk content:
 --- START OF CHUNK ---
@@ -67,7 +67,7 @@ Guidelines:
 - Do not include information outside of what appears in the chunk.
 - If certain details (e.g., references or statistics) are not explicitly stated in the chunk, do not infer or fabricate them.
 - Use bullet points or short paragraphs as appropriate.
-- Output format uses standard Markdown.`;
+- Output format uses standard Markdown, paying attention to indentation (4 spaces).`;
 
 // Prompt for "reduce" in "map-reduce" method
 let reduce_prompt = `You are given multiple summaries of research paper "{title}", each corresponding to a different chunk of a larger text. Your task is to synthesize these summaries into a single, cohesive overview of the entire paper.
@@ -90,7 +90,7 @@ Guidelines:
 - Avoid duplicating information found in multiple chunk summaries.
 - Use neutral, concise language.
 - Do not invent new details not found in the chunk summaries.
-- Output format uses standard Markdown.`;
+- Output format uses standard Markdown, paying attention to indentation (4 spaces).`;
 /************* Configurations End *************/
 
 
@@ -190,7 +190,12 @@ try {
         body: formData
     });
     if (!parseResponse.ok) {
-        throw new Error(`${serverUrl} HTTP Error: ${parseResponse.status} ${parseResponse.statusText}`);
+        let message = undefined;
+        try {
+            const data = await parseResponse.json();
+            message = data.detail || data.error?.message;
+        } catch (error) {}
+        throw new Error(`${serverUrl} HTTP Error: ${parseResponse.status} ${parseResponse.statusText}${message ? ` - ${message}` : ''}`);
     }
     const parseResult = await parseResponse.json();
     const splits = parseResult.splits;
@@ -213,7 +218,12 @@ try {
         body: htmlFormData
     });
     if (!htmlResponse.ok) {
-        throw new Error(`${serverUrl} HTTP Error: ${htmlResponse.status} ${htmlResponse.statusText}`);
+        let message = undefined;
+        try {
+            const data = await htmlResponse.json();
+            message = data.detail || data.error?.message;
+        } catch (error) {}
+        throw new Error(`${serverUrl} HTTP Error: ${htmlResponse.status} ${htmlResponse.statusText}${message ? ` - ${message}` : ''}`);
     }
     const htmlResult = await htmlResponse.json();
 
@@ -250,7 +260,12 @@ async function openaiRequest(message) {
         })
     });
     if (!response.ok) {
-        throw new Error(`${openaiBaseUrl} HTTP Error: ${response.status} ${response.statusText}`);
+        let message = undefined;
+        try {
+            const data = await response.json();
+            message = data.detail || data.error?.message;
+        } catch (error) {}
+        throw new Error(`${openaiBaseUrl} HTTP Error: ${response.status} ${response.statusText}${message ? ` - ${message}` : ''}`);
     }
 
     const result = await response.json();
