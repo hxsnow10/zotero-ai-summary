@@ -1,26 +1,37 @@
 /**
  * Generate paper summary using LLM
- * @author Qiuyang Zhang
+ * @author Qiuyang Zhang xiahong
  * @usage https://github.com/cs-qyzhang/zotero-ai-summary
  */
 
 /************* Configurations Start *************/
 // Server URL used to parse PDF and convert Markdown to HTML
-let serverUrl = "https://paper_summarizer.jianyue.tech";
+let serverUrl = "http://127.0.0.1:13210";
 // Set this to true if you manage PDFs as "Link to File" using ZotMoov or ZotFile. Otherwise, set it to false
 let only_link_file = false;
 // Used in conjunction with ZotMoov or ZotFile. Specifies the maximum number of seconds to wait after adding a paper to check if the PDF download is complete.
 let timeout = 30;
+// support zotero item types; maybe diifernet type need different ptompt
+let support_item_types = ["Magazine Article","Conference Paper","Manuscript","Thesis"];
+
 // OpenAI-compatible API base URL
-let openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+//let openaiBaseUrl = "https://api.fast-tunnel.one/v1";
 // Model name
-let modelName = "qwen-plus-latest";
+//let modelName = "deepseek-v3";
+//let modelName = "gpt-3.5-turbo";
 // API key
-let apiKey = "sk-xxxxxxxxxxxxx";
+//let apiKey = "sk-";
+
+let openaiBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+let modelName = "qwen-plus-latest";
+let apiKey= "sk-";
+
 // Model's max context length
 let chunkSize = 64000;
 // The overlap between chunks of text to process
 let chunkOverlap = 1000;
+// max chunk ; if pdf>max_chunk, no summary will do
+let maxChunk = 5;
 
 // The following prompts are used to generate the summary. You can modify them
 // to change the summary language and style. The simplest way is translate the
@@ -120,6 +131,8 @@ try {
         return;
     }
 
+
+
     let title = item.getField('title');
     let link = item.getField('url') || "";
 
@@ -132,6 +145,11 @@ try {
     itemProgress.setItemTypeAndIcon("note");
     itemProgress.setText("Retrieving PDF...");
     progressWindow.show();
+
+	let itemType = item.itemType;
+	if (!support_item_types.includes(itemType)){
+		throw new Error(`No support itemType=${itemType}.`);
+	}
 
     // Check if the summary already exists
     let noteIds = item.getNotes();
@@ -197,13 +215,22 @@ try {
         } catch (error) {}
         throw new Error(`${serverUrl} HTTP Error: ${parseResponse.status} ${parseResponse.statusText}${message ? ` - ${message}` : ''}`);
     }
-    const parseResult = await parseResponse.json();
-    const splits = parseResult.splits;
+    let parseResult, splits;
+    try {
+        parseResult = await parseResponse.json();
+        splits = parseResult.splits;
+    } catch (error) {
+        throw new Error(`Error when parsing json of ${serverUrl}/parse_pdf: ${error.message}`);
+    }
 
     // Step 2: Generate summary
     itemProgress.setProgress(40);
     itemProgress.setText("Generating summary...");
     const markdownSummary = await summarizeText(title, splits);
+	if (!markdownSummary){
+		itemProgress.setText(`summary error`);
+		return;
+	}
 
     // Step 3: Convert to HTML
     itemProgress.setProgress(80);
@@ -225,7 +252,12 @@ try {
         } catch (error) {}
         throw new Error(`${serverUrl} HTTP Error: ${htmlResponse.status} ${htmlResponse.statusText}${message ? ` - ${message}` : ''}`);
     }
-    const htmlResult = await htmlResponse.json();
+    let htmlResult;
+    try {
+        htmlResult = await htmlResponse.json();
+    } catch (error) {
+        throw new Error(`Error when parsing json of ${serverUrl}/md_to_html: ${error.message}`);
+    }
 
     // Create note with HTML content
     let newNote = new Zotero.Item('note');
@@ -268,7 +300,12 @@ async function openaiRequest(message) {
         throw new Error(`${openaiBaseUrl} HTTP Error: ${response.status} ${response.statusText}${message ? ` - ${message}` : ''}`);
     }
 
-    const result = await response.json();
+    let result;
+    try {
+        result = await response.json();
+    } catch (error) {
+        throw new Error(`Error when parsing json of ${openaiBaseUrl}/chat/completions: ${error.message}`);
+    }
     if (!result.choices) {
         throw new Error("LLM API call failed!");
     }
@@ -281,7 +318,10 @@ async function summarizeText(title, splits) {
         const response = await openaiRequest(formatString(stuff_prompt, { title: title, text: splits[0].content }));
         return response;
     }
-
+    // 如果split太多就停止
+	if (splits.length >=maxChunk) {
+		return null;
+	}
     // For multiple splits, use map-reduce method
     const summaries = await Promise.all(splits.map(async split => {
         const response = await openaiRequest(formatString(map_prompt, { title: title, text: split.content }));

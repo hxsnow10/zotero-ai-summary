@@ -30,7 +30,7 @@ class PaperSummarizer:
                 self.llm = ChatOpenAI(
                     api_key=api_key,
                     base_url=self.base_url,
-                    model=self.model,
+                    model=self.model_name,
                     temperature=0.3,
                 )
         except FileNotFoundError:
@@ -38,7 +38,7 @@ class PaperSummarizer:
                 f"Can't find the API key file: {api_key_path}. Please create the file and add your API key."
             )
         except Exception as e:
-            raise Exception(f"Error reading API key: {str(e)}")
+            raise e
 
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=context_len, chunk_overlap=1000, length_function=len
@@ -169,7 +169,7 @@ if __name__ == "__main__":
         os.path.join(os.path.dirname(__file__), "test.log"), "w", encoding="utf-8"
     ) as f:
         f.write(f"title: {title}, pdf_path: {pdf_path}")
-
+    """
     try:
         summarizer = PaperSummarizer()
         print(f"Start summarizing: {title}, {pdf_path}")
@@ -183,4 +183,4 @@ if __name__ == "__main__":
         ) as f:
             f.write(str(e))
         print(f"Error: {e}")
-        time.sleep(5)
+        time.sleep(5)"""

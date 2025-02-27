@@ -19,6 +19,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+import traceback
 
 # 初始化限制器
 limiter = Limiter(key_func=get_remote_address)
@@ -121,11 +122,11 @@ def cache_summary(title: str, link: str, pdf_hash: str, summary: str, model_name
         print(f"Unexpected error while caching: {e}")
 
 
-summarizer = PaperSummarizer()
+# summarizer = PaperSummarizer()
 
 
 @app.post("/upload")
-@limiter.limit("3/minute")  # 限制每个IP每分钟最多3次请求
+@limiter.limit("100/minute")  # 限制每个IP每分钟最多3次请求
 async def upload_paper(
     request: Request,
     title: str = Form(...),
@@ -168,7 +169,7 @@ async def upload_paper(
 
 
 @app.post("/parse_pdf")
-@limiter.limit("6/minute")  # 限制每个IP每分钟最多5次请求
+@limiter.limit("100/minute")  # 限制每个IP每分钟最多5次请求
 async def parse_pdf(
     request: Request,
     title: str = Form(...),
@@ -190,6 +191,11 @@ async def parse_pdf(
         # 使用 PyPDFLoader 解析 PDF
         loader = PyPDFLoader(pdf_path)
         pages = loader.load()
+        if len(pages)>=30:
+            raise HTTPException(status_code=500, 
+                                detail={"error":
+                                f"The number of pages {len(pages)} in the PDF is too large>=30, don't support."}
+                                )
         full_text = "\n".join(page.page_content for page in pages)
         doc = Document(page_content=full_text)
 
@@ -204,7 +210,7 @@ async def parse_pdf(
             {"content": split.page_content, "metadata": split.metadata}
             for split in splits
         ]
-
+        print(f"sucess parse pdf, Total pages: {len(pages)}")
         return {
             "splits": splits_data,
             "total_pages": len(pages),
@@ -212,6 +218,7 @@ async def parse_pdf(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
 
 
 def post_process_summary(summary: str) -> str:
