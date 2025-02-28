@@ -5,3 +5,7 @@ test.sh
 *.db
 *.log
 poetry.lock
+.vscode
+node_modules
+nohup*
+config.json

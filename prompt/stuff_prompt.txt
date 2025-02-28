@@ -14,3 +14,17 @@ Please analyze this text and provide a concise summary. Structure your response 
 6. **Critique**: Give the flaws and limitations of the paper.
 
 Your summary should be clear, well-organized, and free from personal opinions or additional interpretations that are not supported by the text. Output format uses Markdown, paying attention to indentation (4 spaces).
+
+language remember: 
+If the original text is in English, each paragraph/section is followed by Chinese translation, like:
+
+## Context and Background 背景
+english content
+chinese translation
+## Objective 目标
+english content
+chinese translation
+...
+# Critique 缺点与局限性
+english content
+chinese translation
