@@ -67,7 +67,12 @@ async function generateSummary(item){
     if (config.llm.openaiBaseUrl.endsWith('/')) {
         config.llm.openaiBaseUrl = config.llm.openaiBaseUrl.slice(0, -1);
     }
-    
+    progressWindow = new Zotero.ProgressWindow({
+        "closeOnClick": false,
+    });
+    progressWindow.addDescription(item.getField('title'));
+    itemProgress = new progressWindow.ItemProgress();
+	itemProgress.setItemTypeAndIcon("note");
     try {
         if (!item.isRegularItem() || !item.isTopLevelItem()) {
             return;
@@ -77,12 +82,8 @@ async function generateSummary(item){
         let link = item.getField('url') || "";
     
         const shortTitle = title.length > 50 ? title.substring(0, 50) + "..." : title;
-        progressWindow = new Zotero.ProgressWindow({
-            "closeOnClick": false,
-        });
-        progressWindow.addDescription(shortTitle);
-        itemProgress = new progressWindow.ItemProgress();
-        itemProgress.setItemTypeAndIcon("note");
+
+        
         itemProgress.setText("Retrieving PDF...");
         progressWindow.show();
     
@@ -201,7 +202,7 @@ async function generateSummary(item){
     
         // Create note with HTML content
         let newNote = new Zotero.Item('note');
-        newNote.setNote(htmlResult.html);
+        newNote.setNote(`<h2>AI Generated Summary (${config.llm.modelName})</h2>`+htmlResult.html);
         newNote.parentID = item.id;
         await newNote.saveTx();
     
@@ -218,7 +219,6 @@ async function generateSummary(item){
     }
 
 }
-
 
 
 async function openaiRequest(message) {
@@ -273,17 +273,17 @@ async function summarizeText(title, splits) {
         const response = await openaiRequest(formatString(map_prompt, { title: title, text: split.content }));
         return response;
     }));
-    itemProgress.setProgress(60);
     const combinedSummary = summaries.join('\n\n');
     const response = await openaiRequest(formatString(reduce_prompt, { title: title, text: combinedSummary }));
     return response;
 }
-
+// 注意到action插件对于item与items的处理逻辑，action插件让我们不要使用ZoteroPane获取items
+// https://github.com/windingwind/zotero-actions-tags?tab=readme-ov-file#-advanced-usage
+// 但这个逻辑很变得奇怪。我还是自己获取items吧。
 // 添加并发处理多个选中项的函数
 async function processSelectedItems() {
     // 获取所有选中的项目
     const items = Zotero.getActiveZoteroPane().getSelectedItems();
-    items = [item];
     if (!items || items.length === 0) {
         // window.alert("请先选择要处理的文献");
         return "items size = 0";
@@ -291,6 +291,7 @@ async function processSelectedItems() {
 
     // 使用 Promise.all 并发处理所有选中的项目
     let processNum = 0;
+    let error_info = "";
     try {
         await Promise.all(items.map(async (item) => {
             try {
@@ -299,6 +300,7 @@ async function processSelectedItems() {
                     processNum++;
                 } else {
                     console.error(`处理文献 "${item.getField('title')}" 时出错:`, stats.message);
+                    error_info += stats.message + "\n";
                 }
             } catch (error) {
                 console.error(`处理文献 "${item.getField('title')}" 时出错:`, error);
@@ -308,7 +310,8 @@ async function processSelectedItems() {
         console.error("批量处理文献时出错:", error);
     }
 
-    return  "finsh process: sucess_num = " + processNum + " / total_num = " + items.length;
+    //return  "finsh process: sucess_num = " + processNum + " / total_num = " + items.length+
+    //        "\n" + error_info;
 }
 
 // 执行处理

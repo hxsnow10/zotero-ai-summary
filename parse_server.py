@@ -252,7 +252,7 @@ async def convert_md_to_html(
         summary = post_process_summary(markdown)
         md = MarkdownIt()
         html = md.render(summary)
-        html = f"<h2>AI Generated Summary ({model_name})</h2>" + html
+        html = html
         return {"html": html}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
