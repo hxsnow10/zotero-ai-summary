@@ -237,6 +237,7 @@ class ZoteroLLMQA{
             });
         }
     }
+}
 
 function formatString(str, params) {
     return str.replace(/{([^{}]*)}/g, (match, key) => {
