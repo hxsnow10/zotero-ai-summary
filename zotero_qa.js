@@ -4,6 +4,13 @@
  * @usage https://github.com/hxsnow10/zotero-ai-summary
  */
 
+// action-tags 在选中多个（包括一个的情况）下会先对[items=xxx,item=null]执行一次action
+// 然后依次对[items=null, item=xxx]执行action
+// 为了避免重复执行；而且我这个逻辑与items无关的。
+// 不管是否有items被选中，都会出现且只出现一次item=null的情况，只有这时候才执行action
+
+if (item!=null) return;
+
 /************* Configurations Start *************/
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
