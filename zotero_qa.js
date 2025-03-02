@@ -208,8 +208,35 @@ class ZoteroLLMQA{
 
         newNote.setNote(html);
         await newNote.saveTx();
+
+        // 添加到集合
+        const collectionKey = config.qa.saveCollectionKey; 
+        const collection = Zotero.Collections.getByLibraryAndKey(
+            Zotero.Libraries.userLibraryID,
+            collectionKey
+        );
+        if (collection) {
+
+            await Zotero.DB.executeTransaction(async () => {
+                try {
+                    
+                    // 确保笔记存在且已保存
+                    const noteExists = await Zotero.Items.get(newNote.id);
+                    if (!noteExists) {
+                        throw new Error("笔记不存在或未正确保存");
+                    }
+
+                    // 添加到集合
+                    collection.addItem(newNote.id);
+                    await collection.saveTx();
+                    // 似乎这个wait还是异步的，后面还是检测不到 虽然成功了
+                } catch (e) {
+                    Zotero.debug(`添加到集合失败: ${e.message}`);
+                    throw e;
+                }
+            });
+        }
     }
-}
 
 function formatString(str, params) {
     return str.replace(/{([^{}]*)}/g, (match, key) => {
