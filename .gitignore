@@ -9,3 +9,4 @@ poetry.lock
 node_modules
 nohup*
 config.json
+package*

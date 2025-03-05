@@ -5,6 +5,7 @@
  */
 
 /************* Configurations Start *************/
+// TODO: 支持html 
 
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
@@ -75,6 +76,7 @@ async function generateSummary(item){
 	itemProgress.setItemTypeAndIcon("note");
     try {
         if (!item.isRegularItem() || !item.isTopLevelItem()) {
+            progressWindow.startCloseTimer();
             return;
         }
     
@@ -83,15 +85,13 @@ async function generateSummary(item){
     
         const shortTitle = title.length > 50 ? title.substring(0, 50) + "..." : title;
 
-        
-        itemProgress.setText("Retrieving PDF...");
-        progressWindow.show();
     
         let itemType = item.itemType;
         if (!config.summary.support_item_types.includes(itemType)){
+            progressWindow.startCloseTimer();
             return `No support itemType=${itemType}.`;
         }
-    
+
         // Check if the summary already exists
         let noteIds = item.getNotes();
         let summary_exist = false;
@@ -106,7 +106,7 @@ async function generateSummary(item){
         if (summary_exist) {
             itemProgress.setProgress(100);
             itemProgress.setText("Summary already exists.");
-            progressWindow.startCloseTimer(5000);
+            progressWindow.startCloseTimer(1000);
             return;
         }
     
@@ -121,8 +121,12 @@ async function generateSummary(item){
             }
         }
         if (!pdfAttachment) {
+            progressWindow.startCloseTimer();
             return "No PDF attachment found for the selected item.";
         }
+
+        itemProgress.setText("Retrieving PDF...");
+        progressWindow.show();
     
         let pdfPath = await pdfAttachment.getFilePath();
         const basePath = pdfPath.replace(/^.*[\\/]/, "");
@@ -170,6 +174,7 @@ async function generateSummary(item){
         const markdownSummary = await summarizeText(title, splits);
         if (!markdownSummary){
             itemProgress.setText(`summary error`);
+            progressWindow.startCloseTimer(5000);
             return false;
         }
     
@@ -281,9 +286,7 @@ async function summarizeText(title, splits) {
 // https://github.com/windingwind/zotero-actions-tags?tab=readme-ov-file#-advanced-usage
 // 但这个逻辑很变得奇怪。我还是自己获取items吧。
 // 添加并发处理多个选中项的函数
-async function processSelectedItems() {
-    // 获取所有选中的项目
-    const items = Zotero.getActiveZoteroPane().getSelectedItems();
+async function processSelectedItems(items) {
     if (!items || items.length === 0) {
         // window.alert("请先选择要处理的文献");
         return "items size = 0";
@@ -315,4 +318,10 @@ async function processSelectedItems() {
 }
 
 // 执行处理
-return await processSelectedItems();
+if (item) {
+    // Disable the action if it's triggered for a single item to avoid duplicate operations
+    return;
+  }
+else {
+    return await processSelectedItems(items);
+}
