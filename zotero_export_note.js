@@ -21,8 +21,15 @@ function getYesterday(){
     const formattedDate = `${year}-${month}-${day}`;
     return formattedDate;
 }
+// clean this 2 directory
+
 let all_note_dir = "/home/xiahong/文档/zotero_notes/all";
-let yeryerday_note_dir = "/home/xiahong/文档/zotero_notes/"+getYesterday();
+let yesterday_note_dir = "/home/xiahong/文档/zotero_notes/"+getYesterday();
+
+IOUtils.remove(all_note_dir);
+IOUtils.remove(yesterday_note_dir);
+IOUtils.makeDirectory(all_note_dir);
+IOUtils.makeDirectory(yesterday_note_dir);
 
 async function getAllNotes() {
     try {
@@ -111,8 +118,9 @@ async function processNotes() {
             if (content.includes(templateName)) {
                 // 笔记是昨天修改的
                 export_notes.push(note);
-                await writeNoteContent(note, all_note_dir);
+                // await writeNoteContent(note, all_note_dir);
                 if (isYesterday(dateModified)){
+                    
                     await writeNoteContent(note, yesterday_note_dir);
                 }
             }

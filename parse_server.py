@@ -191,11 +191,16 @@ async def parse_pdf(
         # 使用 PyPDFLoader 解析 PDF
         loader = PyPDFLoader(pdf_path)
         pages = loader.load()
-        if len(pages)>=30:
-            raise HTTPException(status_code=500, 
-                                detail={"error":
-                                f"The number of pages {len(pages)} in the PDF is too large>=30, don't support."}
-                                )
+        if len(pages)>=50:
+            pages = pages[:50]
+
+        references_pages = []
+        for k,page in enumerate(pages):
+            if "References" in page.page_content:
+                references_pages.append(k)
+        if len(references_pages)==1:
+            pages = pages[:references_pages[0]+1]
+
         full_text = "\n".join(page.page_content for page in pages)
         doc = Document(page_content=full_text)
 

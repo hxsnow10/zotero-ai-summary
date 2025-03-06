@@ -1,7 +1,23 @@
 # LLM Paper Summarizer and QA for Zotero
 
 ## 通用流程
-工作流程：以 [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) 脚本的形式实现。脚本在actions-tags中触发后，根据相应问题进行输入提取，parser_server.py提供pdf解析与markdown->hmtl转换等后台服务，根据prompt生成LLM输入，调用LLM API，最后将结果处理好写入到论文笔记中。
+工作流程：以 [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) 脚本的形式实现。脚本可能是简单的简单的更新note模板的逻辑；也可以更为复杂，比如LLM摘要：根据相应问题进行输入提取，parser_server.py提供pdf解析与markdown->hmtl转换等后台服务，根据prompt生成LLM输入，调用LLM API，最后将结果处理好写入到论文笔记中。
+
+本库一共提供了以下流程:
+- zotero_autoupdate_notes.js 在 Zotero 中自动更新标准生成带层次标题的笔记。
+- zotero_pdf_summary.js: 在 Zotero 中使用 LLM 自动总结论文并生成笔记。
+- zotero_pdf_qa.js: 在 Zotero 搜索相关文档并使用LLM回答用户提出的问题。
+- zotero_export_note.js:自动把note导出到文件里，方便同步到wolai。
+
+## Quick Start
+1、下载好库后，启动parser_server: nohup python parse_server.py &
+2、按照better-notes与actions-tags插件 配置好这些脚本
+3、配置好config.json，包括服务器地址、模型API等信息。
+4、配置好prompt，用于配置模型输入的prompt。可以先不用修改。
+然后在zotero触发这些脚本即可。
+
+## 更新带层次标题的笔记流程
+需要安装better-notes插件，zotero_note_template.js即为生成笔记的模板。zotero_autoupdate_notes.js脚本会自动更新笔记。
 
 ## Summary流程
 zotero_pdf_summary.js
@@ -28,17 +44,6 @@ zotero_pdf_qa.js
 Answer user questions using an LLM in Zotero.
 
 When a user asks a question, the zotero-actions-tags plugin triggers the script. script searchs for relevant items in the Zotero library based on the question. The script then combines the information from the items (title, abstract, AI summary) with the prompt and sends it to the LLM server, retrieves the LLM answer, and writes it to the note.
-
-
-## 部署 | Setup
-
-安装 [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) 插件，并按照下图配置。
-
-Install the [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) plugin and configure it as shown below:
-
-![zotero-actions-tags settings](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124094839.png)
-
-![edit action](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124095407.png)
 
 nohup python parse_server.py & 打开server，添加进开机项；
 

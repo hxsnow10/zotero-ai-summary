@@ -141,12 +141,13 @@ async function processSelectedItems(items) {
             "\n" + error_info;
 }
 
+let nitems = Zotero.getMainWindow().ZoteroPane.getSelectedItems();
+
 // 执行处理
 if (item) {
   // Disable the action if it's triggered for a single item to avoid duplicate operations
-  return;
+  if (nitems.length==1) return await processSelectedItems(nitems);
 }
 else {
-	return await processSelectedItems(items);
+	return await processSelectedItems(nitems);
 }
-
