@@ -6,6 +6,9 @@
 
 /************* Configurations Start *************/
 // TODO: 支持html 
+// TODO：生成摘要的时候，最好还能保留这个对话环境，方便后续的交互问答  pdfask
+// 每次打开文本都生成一次吗？ 这还是得手动触发吧。有需要问答的时候，触发一次上传，然后交互即可。
+// 记录时间
 
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
@@ -64,6 +67,8 @@ async function generateSummary(item){
     let progressWindow = undefined;
     let itemProgress = undefined;
     const window = require('window');
+    // 记录开始时间
+    const startTime = new Date();
     
     if (config.llm.openaiBaseUrl.endsWith('/')) {
         config.llm.openaiBaseUrl = config.llm.openaiBaseUrl.slice(0, -1);
@@ -204,10 +209,21 @@ async function generateSummary(item){
         } catch (error) {
             throw new Error(`Error when parsing json of ${config.server.url}/md_to_html: ${error.message}`);
         }
+            // 计算总耗时
+        const endTime = new Date();
+        const totalTime = (endTime - startTime) / 1000; // 转换为秒
+
+        // 格式化耗时
+        const minutes = Math.floor(totalTime / 60);
+        const seconds = Math.floor(totalTime % 60);
+        const timeStr = minutes > 0 ? 
+            `耗时：${minutes}分${seconds}秒` : 
+            `${seconds}秒`;
     
         // Create note with HTML content
         let newNote = new Zotero.Item('note');
-        newNote.setNote(`<h2>AI Generated Summary (${config.llm.modelName})</h2>`+htmlResult.html);
+        let htmlContent = `<h2>AI Generated Summary (${config.llm.modelName})</h2>`+htmlResult.html + timeStr;
+        newNote.setNote(htmlContent);
         newNote.parentID = item.id;
         await newNote.saveTx();
     
@@ -291,7 +307,7 @@ async function processSelectedItems(items) {
         // window.alert("请先选择要处理的文献");
         return "items size = 0";
     }
-
+    
     // 使用 Promise.all 并发处理所有选中的项目
     let processNum = 0;
     let error_info = "";
@@ -317,11 +333,13 @@ async function processSelectedItems(items) {
     //        "\n" + error_info;
 }
 
+let nitems = Zotero.getMainWindow().ZoteroPane.getSelectedItems();
+
 // 执行处理
 if (item) {
-    // Disable the action if it's triggered for a single item to avoid duplicate operations
-    return;
-  }
+  // Disable the action if it's triggered for a single item to avoid duplicate operations
+  if (nitems.length==1) return await processSelectedItems(nitems);
+}
 else {
-    return await processSelectedItems(items);
+	return await processSelectedItems(nitems);
 }

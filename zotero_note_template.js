@@ -113,6 +113,7 @@ ${ await(async() => {
             level = last_level;
             let myAnnotation = { labels: "", content: "" };
             let myComment = annoItem.annotationComment;
+			// if (!annoItem.annotationComment.trim() && !annoItem.annotationText.trim()) continue;
             // get label
             if (annoItem.annotationColor == label_color){
                 label = annoItem.annotationText;
@@ -128,25 +129,37 @@ ${ await(async() => {
                         ...(await Zotero.Annotations.toJSON(annoItem)), ...{ attachmentItemID: annoItem.parentID }
                     }]);
                     if (["note", "text"].includes(annoItem.annotationType)) {
-                        myAnnotation.content += res.html.replace("[" + myAnnotation.labels.join('][') + "]", "");
+                        //myAnnotation.content += res.html.replace("[" + myAnnotation.labels.join('][') + "]", "");
                     }
                     else {
-                        myAnnotation.content += "<blockquote>" + res.html + "</blockquote>";
-                        myAnnotation.content += "";
+						if (res.html.trim()){
+                        	myAnnotation.content += "<blockquote> "+ res.html + "</blockquote>";
+                        	myAnnotation.content += "";
+						}
+
                     }
 					if (myComment){
                         annoItem.annotationComment = myComment;
                 	}
+					if (myComment && myAnnotation.content){
+						myAnnotation.content += myComment;
+					}
                 }
                 else {
+					let html = await Zotero.BetterNotes.api.convert.annotations2html([annoItem], { noteItem: targetNoteItem, ignoreComment: true }) ;
                     //if (["image", "ink"].includes(annoItem.annotationType)) {
-                        myAnnotation.content += "<blockquote>" + await Zotero.BetterNotes.api.convert.annotations2html([annoItem], { noteItem: targetNoteItem, ignoreComment: true }) + "</blockquote>";
+					if (html){
+                    myAnnotation.content += "<blockquote>" + html + "</blockquote>";
                     //}
 					if (myComment){
                 		annoItem.annotationComment = myComment;
             		}
+					if (myComment && myAnnotation.content){
+						myAnnotation.content += myComment;
+					}
+					}
                 }
-				myAnnotation.content += myComment;
+
             }
 			let currentLevel = groupedAnnotations;
 			// 如果当前标签在结果中不存在，则初始化

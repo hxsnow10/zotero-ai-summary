@@ -62,13 +62,22 @@ async function generateNote(item){
     for (let id of noteIDs) {
         let note = Zotero.Items.get(id);
         let noteHTML = note.getNote();
+        if (!noteHTML){
+            Zotero.Items.trashTx(id);
+            continue;
+        }
         if (noteHTML.includes(templateName)) {
             let noteLastModified = note.dateModified;
+
             if (!update_all && noteLastModified >= lastAnnotModified){
                 return `[Action:Auto-Template] Note is up to date, noteModify = ${noteLastModified}, annoModify  =${lastAnnotModified}`;
             }
             console.log("Removing old auto-created note", id, noteHTML);
-            Zotero.Items.trashTx(id);   
+            try {
+                Zotero.Items.trashTx(id);
+            } catch (error) {
+                console.error(`Failed to remove old auto-created note ${id}:`, error);
+            }   
         }
     }
 
@@ -112,8 +121,8 @@ async function generateNote(item){
 async function processSelectedItems(items) {
     // 获取所有选中的项目
     if (!items || items.length == 0) {
-        // window.alert("请先选择要处理的文献");
-        // return "items size = 0";
+        window.alert("请先选择要处理的文献");
+        return "items size = 0";
     }
 
 
@@ -121,19 +130,30 @@ async function processSelectedItems(items) {
     let processNum = 0;
     let error_info = "";
     try {
-        await Promise.all(items.map(async (item) => {
-            try {
-                let stats= await generateNote(item);
-                if (stats==true){
-                    processNum++;
-                } else {
-                    // console.error(`处理文献 "${item.getField('title')}" 时出错:`, stats);
-                    // error_info += stats+ "\n";
-                }
-            } catch (error) {
-                console.error(`处理文献 "${item.getField('title')}" 时出错:`, error);
+        function chunkArray(arr, k) {
+            const result = [];
+            for (let i = 0; i < arr.length; i += k) {
+                result.push(arr.slice(i, i + k));
             }
-        }));
+            return result;
+        }
+        let itemList = chunkArray(items, 20);
+        for (let item_list of itemList) {
+
+            await Promise.all(item_list.map(async (itemx) => {
+                try {
+                    let stats= await generateNote(itemx);
+                    if (stats==true){
+                        processNum++;
+                    } else {
+                        // console.error(`处理文献 "${item.getField('title')}" 时出错:`, stats);
+                        error_info += stats+ "\n";
+                    }
+                } catch (error) {
+                    console.error(`处理文献 "${item.getField('title')}" 时出错:`, error);
+                }
+            }));
+        }
     } catch (error) {
         console.error("批量处理文献时出错:", error);
     }
@@ -146,8 +166,10 @@ let nitems = Zotero.getMainWindow().ZoteroPane.getSelectedItems();
 // 执行处理
 if (item) {
   // Disable the action if it's triggered for a single item to avoid duplicate operations
-  if (nitems.length==1) return await processSelectedItems(nitems);
+  // if (nitems.length==1) return await processSelectedItems(nitems);
+  if (nitems.length==1) return await generateNote(item);
 }
 else {
-	return await processSelectedItems(nitems);
+  if (nitems.length>1) return await processSelectedItems(nitems);
 }
+
