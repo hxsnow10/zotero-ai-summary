@@ -124,12 +124,18 @@ async function processSelectedItems(items) {
         window.alert("请先选择要处理的文献");
         return "items size = 0";
     }
-
-
+    // 加个window显示进度
+    progressWindow = new Zotero.ProgressWindow({
+        "closeOnClick": false,
+    });
+    progressWindow.addDescription(item.getField('title'));
+    itemProgress = new progressWindow.ItemProgress();
+    
     // 使用 Promise.all 并发处理所有选中的项目
     let processNum = 0;
     let error_info = "";
     try {
+
         function chunkArray(arr, k) {
             const result = [];
             for (let i = 0; i < arr.length; i += k) {
@@ -139,7 +145,8 @@ async function processSelectedItems(items) {
         }
         let itemList = chunkArray(items, 20);
         for (let item_list of itemList) {
-
+            itemProgress.setProgress(int(processNum / items.length * 100));
+            itemProgress.setText(`正在处理第 ${processNum+1} / ${items.length} 个文献`);
             await Promise.all(item_list.map(async (itemx) => {
                 try {
                     let stats= await generateNote(itemx);
@@ -157,6 +164,9 @@ async function processSelectedItems(items) {
     } catch (error) {
         console.error("批量处理文献时出错:", error);
     }
+    itemProgress.setProgress(100);
+    itemProgress.setText("finsh process: sucess_num = " + processNum + " / total_num = " + items.length);
+    progressWindow.startCloseTimer(5000);
     return  "finsh process: sucess_num = " + processNum + " / total_num = " + items.length+
             "\n" + error_info;
 }

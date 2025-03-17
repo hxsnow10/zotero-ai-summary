@@ -1,9 +1,16 @@
 // 每当打开zotero的时候，都会自动运行这个脚本
-// 把最近修改时间为昨天的笔记导出到一个文件夹里
+// 把所有的笔记都导出来，然后保存到一个目录里，然后导入到wolai里
+// 一共2个目录，一个是所有的笔记，一个是更新过的笔记
+// 需要一个地方，存储与读取上一次保存的时间
+// 筛选出真正看完的笔记，长度大于某个值
 
 let templateName = "[item]标记自动生成的层次笔记模板";
 let notewrite_dir = "/home/xiahong/文档/zotero_notes"
+let last_save_time_path = "/home/xiahong/文档/zotero_notes/last_save_time.txt";
+let last_save_time = Zotero.File.getContents(last_save_time_path);
 
+let ignore_last_save_time = true;
+const min_length = 5000;
 
 function getYesterday(){
     // 获取当前日期
@@ -24,12 +31,12 @@ function getYesterday(){
 // clean this 2 directory
 
 let all_note_dir = "/home/xiahong/文档/zotero_notes/all";
-let yesterday_note_dir = "/home/xiahong/文档/zotero_notes/"+getYesterday();
+let new_note_dir = "/home/xiahong/文档/zotero_notes/new";
 
-IOUtils.remove(all_note_dir);
-IOUtils.remove(yesterday_note_dir);
+//IOUtils.remove(all_note_dir,{recursive: true});
+//IOUtils.remove(new_note_dir);
 IOUtils.makeDirectory(all_note_dir);
-IOUtils.makeDirectory(yesterday_note_dir);
+IOUtils.makeDirectory(new_note_dir);
 
 async function getAllNotes() {
     try {
@@ -78,21 +85,28 @@ async function writeNoteContent(note, directory) {
         // 获取父项目标题作为文件名的一部分
         const parentTitle = note.parentItem ? note.parentItem.getField('title') : 'untitled';
         // 清理文件名，移除非法字符
-        const safeTitle = parentTitle.replace(/[^\w\s-]/g, '');
+        const safeTitle = parentTitle.replace(/[\0\/]/g, '');
         
         // 创建文件名：标题_日期_笔记ID
-        const fileName = `${safeTitle}_${new Date(note.dateModified).toISOString().split('T')[0]}_${note.key}.html`;
+        const fileName = `${safeTitle}_${new Date(note.dateModified).toISOString().split('T')[0]}.md`;
         const filePath = `${directory}/${fileName}`;
+        const filePathTmp = `${directory}/${fileName}_tmp.md`; 
 
-        // 获取笔记内容
-        const content = note.getNote();
 
-        // 确保目录存在
-        await IOUtils.makeDirectory(directory);
+
+        await Zotero.BetterNotes.api.$export.saveMD(filePathTmp, note.id);
+        // 如果有需要修改内容 
+        
+        let content = Zotero.File.getContents(filePathTmp);
+        content = content.replace(/<[^>]*span[^>]*>/gi, '');
+        content = content.replace(/\\<[^>]*img[^>]*>/gi, '');
+        content= content.replace(/<!--[\s\S]*?-->/g, "");
+        content= content.replace(/🔤/g,"")
 
         // 写入文件
         const encoder = new TextEncoder();
         await IOUtils.write(filePath, encoder.encode(content));
+        await IOUtils.remove(filePathTmp);
 
         Zotero.debug(`笔记已保存到: ${filePath}`);
         return filePath;
@@ -105,6 +119,7 @@ async function writeNoteContent(note, directory) {
 // 使用示例
 async function processNotes() {
     let export_notes = [];
+    let lengths = [];
     try {
         const notes = await getAllNotes();
         
@@ -118,18 +133,32 @@ async function processNotes() {
             if (content.includes(templateName)) {
                 // 笔记是昨天修改的
                 export_notes.push(note);
-                // await writeNoteContent(note, all_note_dir);
-                if (isYesterday(dateModified)){
-                    
-                    await writeNoteContent(note, yesterday_note_dir);
+                lengths.push([note.parentItem.getField('title'),content.length]);
+                if (content.length > min_length){
+                    await writeNoteContent(note, all_note_dir);
+                    if ((dateModified>last_save_time || ignore_last_save_time)) {
+                        
+                        // 保存目录的逻辑：  可以就保存到一个目录里，然后整体打包导入wolai，导入后这些都移除，
+                        // 下次保存就是那些增量的，导入就少了
+                        await writeNoteContent(note, new_note_dir);
+                    }
                 }
             }
         }
     } catch (error) {
         Zotero.debug(`处理笔记时出错: ${error.message}`);
     }
+    return lengths;
     return export_notes;
 }
 
-let export_notes = await processNotes();
-return export_notes;
+
+if (item==null){
+    let result = await processNotes();
+    result.sort((a,b)=>b[1]-a[1]);
+
+    // 写入文件
+    const now = new Date();
+    const encoder = new TextEncoder();
+    await IOUtils.write(last_save_time_path, encoder.encode(now.toISOString()));
+}

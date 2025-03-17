@@ -341,6 +341,8 @@ async function markdownToHtml(markdown) {
     return htmlResult.html;
 }
 
-
-const LLMQA = new ZoteroLLMQA();
-return await LLMQA.getQuestionAnswer();
+// 仅在item=null的情况下执行，避免重复执行
+if (item==null){
+    const LLMQA = new ZoteroLLMQA();
+    return await LLMQA.getQuestionAnswer();
+}

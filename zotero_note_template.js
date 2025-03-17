@@ -124,17 +124,18 @@ ${ await(async() => {
                 if (["note", "text", "highlight", "underline"].includes(annoItem.annotationType)) {
                     if(["highlight", "underline"].includes(annoItem.annotationType) && myComment){
                         annoItem.annotationComment = "";
-                    }
-                    const res = Zotero.EditorInstanceUtilities.serializeAnnotations([{
-                        ...(await Zotero.Annotations.toJSON(annoItem)), ...{ attachmentItemID: annoItem.parentID }
-                    }]);
+					}
+					//const res = Zotero.EditorInstanceUtilities.serializeAnnotations([{
+                    //    ...(await Zotero.Annotations.toJSON(annoItem)), ...{ attachmentItemID: annoItem.parentID }
+                    //}]);
                     if (["note", "text"].includes(annoItem.annotationType)) {
                         //myAnnotation.content += res.html.replace("[" + myAnnotation.labels.join('][') + "]", "");
                     }
                     else {
-						if (res.html.trim()){
-                        	myAnnotation.content += "<blockquote> "+ res.html + "</blockquote>";
-                        	myAnnotation.content += "";
+						if (annoItem.annotationText){
+                        	myAnnotation.content += "<blockquote>"+ annoItem.annotationText + "</blockquote>";
+                        	// 上面如果使用注释掉的res.html则可以让笔记导向原本地址，但同时也会让笔记变得很大，以及导出后导入不够简单
+							myAnnotation.content += "";
 						}
 
                     }
@@ -146,9 +147,11 @@ ${ await(async() => {
 					}
                 }
                 else {
-					let html = await Zotero.BetterNotes.api.convert.annotations2html([annoItem], { noteItem: targetNoteItem, ignoreComment: true }) ;
+					let html = await Zotero.BetterNotes.api.convert.annotations2html([annoItem], { noteItem: targetNoteItem, ignoreComment: true ,skipCitations : true}) ;
                     //if (["image", "ink"].includes(annoItem.annotationType)) {
 					if (html){
+						html = html.replace(/<[^>]*span[^>]*>/gi, '');
+						html = html.replace(/<[^>]*simg[^>]*>/gi, '');
                     myAnnotation.content += "<blockquote>" + html + "</blockquote>";
                     //}
 					if (myComment){
@@ -174,6 +177,8 @@ ${ await(async() => {
 			}
 			// 添加内容
             if (myAnnotation.content){
+				myAnnotation.content = myAnnotation.content.replace(/<[^>]*span[^>]*>/gi, '');
+				myAnnotation.content = myAnnotation.content.replace(/<[^>]*simg[^>]*>/gi, '');
 			    currentLevel[label].content.push(myAnnotation.content);
             }
 			last_label = label;
@@ -194,10 +199,10 @@ ${ await(async() => {
         <h1> Auto: ${topItem.getField('title')} (${topItem.getField("year")}, ${sourceName}, ${authorDisplay[0]})</h1>
         <!--<hr/>-->
         <p><tr><td>
-            <b><span style="color: #3c5acc">Author: </span></b> ${authorDisplay[1]}
+            Author: ${authorDisplay[1]}
         </td></tr></p>
 
-        <p><tr><td><b><span style="color: #3c5acc">Source: </span></b>
+        <p><tr><td>Source:
             ${(topItem.getField("volume") + topItem.getField("issue") + topItem.getField("pages")) ? 
             (publicationName + " (" + 
             (topItem.getField("volume") ? "volume: " + topItem.getField("volume") + ", " : '') + 
@@ -221,17 +226,17 @@ ${ await(async() => {
             ${(() => {
                 const doi = topItem.getField("DOI");
                 if (doi) {
-                    return `<b><span style="color: #3c5acc">DOI: </span></strong></b> 
+                    return `DOI: </strong>
                     <a href="https://doi.org/${topItem.getField('DOI')}">${topItem.getField('DOI')}</a>`;
                 } else {
-                    return `<b><span style="color: #3c5acc">URL: </span></strong> </b> 
+                    return `URL: </strong> 
                     <a href="${topItem.getField('url')}">${topItem.getField('url')}</a>`;
                 }
            })()}
         </td></tr></p>
 
         <p><tr><td>
-            <b><span style="color: #3c5acc">Date: </span></b> ${topItem.getField('date')}
+            Date:  ${topItem.getField('date')}
         </td></tr></p>
 
         <!-- 本地链接 -->
@@ -239,16 +244,16 @@ ${ await(async() => {
             ${(() => {
                 const attachments = Zotero.Items.get(topItem.getAttachments());
                 if (attachments && attachments.length > 1) {
-                    return `<b><span style="color: #3c5acc">Full Text: </span></b> 
+                    return `Full Text: 
                     <a href=zotero://open-pdf/0_${Zotero.Items.get(topItem.getAttachments()).filter((i) => i.isPDFAttachment())[0].key}>
                     ${Zotero.Items.get(topItem.getAttachments()).filter((i) => i.isPDFAttachment())[0].getFilename()}</a>`;
                 } else {
                     if (attachments && attachments.length > 0) {
-                        return `<b><span style="color: #3c5acc">Full Text: </span> </b> 
+                        return `Full Text:  
                         <a href="zotero://open-pdf/0_${attachments[0].key}">${attachments[0].getFilename()}</a>`;
                     }
                     else {
-                        return `<b><span style="color: #3c5acc">Full Text: </span></b>`;
+                        return `Full Text: `;
                     }
                 }
             })()}
@@ -256,7 +261,7 @@ ${ await(async() => {
 
         <!-- 摘要 -->
         <p><tr><td>
-            <b><span style="color: #3c5acc">Abstract: </span></b> <i>${topItem.getField('abstractNote')}</i>
+            Abstract:  <i>${topItem.getField('abstractNote')}</i>
         </td></tr></p>
         <!--<hr/>-->
 
