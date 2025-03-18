@@ -128,12 +128,14 @@ async function processSelectedItems(items) {
     progressWindow = new Zotero.ProgressWindow({
         "closeOnClick": false,
     });
-    progressWindow.addDescription(item.getField('title'));
+    progressWindow.addDescription("正在更新选中的文献的annotation-note...");
     itemProgress = new progressWindow.ItemProgress();
-    
+	itemProgress.setItemTypeAndIcon("note");
+    progressWindow.show();
     // 使用 Promise.all 并发处理所有选中的项目
     let processNum = 0;
-    let error_info = "";
+    let processSuccNum = 0;
+    let error_info = {};
     try {
 
         function chunkArray(arr, k) {
@@ -145,16 +147,17 @@ async function processSelectedItems(items) {
         }
         let itemList = chunkArray(items, 20);
         for (let item_list of itemList) {
-            itemProgress.setProgress(int(processNum / items.length * 100));
+            itemProgress.setProgress(parseInt(processNum / items.length * 100));
             itemProgress.setText(`正在处理第 ${processNum+1} / ${items.length} 个文献`);
             await Promise.all(item_list.map(async (itemx) => {
                 try {
+                    processNum++;
                     let stats= await generateNote(itemx);
                     if (stats==true){
-                        processNum++;
+                        processSuccNum++;
                     } else {
                         // console.error(`处理文献 "${item.getField('title')}" 时出错:`, stats);
-                        error_info += stats+ "\n";
+                        error_info[stats] += 1;
                     }
                 } catch (error) {
                     console.error(`处理文献 "${item.getField('title')}" 时出错:`, error);
@@ -165,7 +168,7 @@ async function processSelectedItems(items) {
         console.error("批量处理文献时出错:", error);
     }
     itemProgress.setProgress(100);
-    itemProgress.setText("finsh process: sucess_num = " + processNum + " / total_num = " + items.length);
+    itemProgress.setText("finsh process: sucess_num = " + processSuccNum + " / total_num = " + items.length);
     progressWindow.startCloseTimer(5000);
     return  "finsh process: sucess_num = " + processNum + " / total_num = " + items.length+
             "\n" + error_info;

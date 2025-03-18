@@ -126,7 +126,7 @@ def cache_summary(title: str, link: str, pdf_hash: str, summary: str, model_name
 
 
 @app.post("/upload")
-@limiter.limit("100/minute")  # 限制每个IP每分钟最多3次请求
+@limiter.limit("1000/minute")  # 限制每个IP每分钟最多3次请求
 async def upload_paper(
     request: Request,
     title: str = Form(...),
@@ -169,7 +169,7 @@ async def upload_paper(
 
 
 @app.post("/parse_pdf")
-@limiter.limit("100/minute")  # 限制每个IP每分钟最多5次请求
+@limiter.limit("1000/minute")  # 限制每个IP每分钟最多5次请求
 async def parse_pdf(
     request: Request,
     title: str = Form(...),
@@ -191,15 +191,16 @@ async def parse_pdf(
         # 使用 PyPDFLoader 解析 PDF
         loader = PyPDFLoader(pdf_path)
         pages = loader.load()
-        if len(pages)>=50:
-            pages = pages[:50]
 
         references_pages = []
         for k,page in enumerate(pages):
             if "References" in page.page_content:
                 references_pages.append(k)
-        if len(references_pages)==1:
-            pages = pages[:references_pages[0]+1]
+        if len(references_pages)>=1 and references_pages[-1]>len(pages)/2:
+            pages = pages[:references_pages[-1]+1]
+        
+        if len(pages)>=50:
+            pages = pages[:50]
 
         full_text = "\n".join(page.page_content for page in pages)
         doc = Document(page_content=full_text)
@@ -245,7 +246,7 @@ def post_process_summary(summary: str) -> str:
 
 
 @app.post("/md_to_html")
-@limiter.limit("6/minute")  # 限制每个IP每分钟最多10次请求
+@limiter.limit("1000/minute")  # 限制每个IP每分钟最多10次请求
 async def convert_md_to_html(
     request: Request,
     markdown: str = Form(...),

@@ -4,13 +4,17 @@
 // 需要一个地方，存储与读取上一次保存的时间
 // 筛选出真正看完的笔记，长度大于某个值
 
-let templateName = "[item]标记自动生成的层次笔记模板";
+// key of content, value of file name suffix
+let keyNames = {
+    "[item]标记自动生成的层次笔记模板":"Annotation",
+    "AI Generated Summary":"AI-Summary",
+}
 let notewrite_dir = "/home/xiahong/文档/zotero_notes"
 let last_save_time_path = "/home/xiahong/文档/zotero_notes/last_save_time.txt";
 let last_save_time = Zotero.File.getContents(last_save_time_path);
 
 let ignore_last_save_time = true;
-const min_length = 5000;
+const min_length = 3000;
 
 function getYesterday(){
     // 获取当前日期
@@ -80,19 +84,18 @@ function isYesterday(dateString) {
     return targetDate >= startOfYesterday && targetDate < endOfYesterday;
 }
 
-async function writeNoteContent(note, directory) {
+async function writeNoteContent(note, note_type, directory) {
     try {
+        IOUtils.makeDirectory(directory);
         // 获取父项目标题作为文件名的一部分
         const parentTitle = note.parentItem ? note.parentItem.getField('title') : 'untitled';
         // 清理文件名，移除非法字符
         const safeTitle = parentTitle.replace(/[\0\/]/g, '');
         
         // 创建文件名：标题_日期_笔记ID
-        const fileName = `${safeTitle}_${new Date(note.dateModified).toISOString().split('T')[0]}.md`;
+        const fileName = `${safeTitle}_${note.parentItem.getField('date')}_${note_type}.md`;
         const filePath = `${directory}/${fileName}`;
         const filePathTmp = `${directory}/${fileName}_tmp.md`; 
-
-
 
         await Zotero.BetterNotes.api.$export.saveMD(filePathTmp, note.id);
         // 如果有需要修改内容 
@@ -120,34 +123,43 @@ async function writeNoteContent(note, directory) {
 async function processNotes() {
     let export_notes = [];
     let lengths = [];
-    try {
-        const notes = await getAllNotes();
-        
-        for (const note of notes) {
+
+    const notes = await getAllNotes();
+    
+    for (const note of notes) {
+        try {
             // 获取笔记内容
             const content = note.getNote();
             // 获取修改时间
             const dateModified = note.dateModified;
             // 获取父条目（如果有）
             const parentItem = note.parentItem;
-            if (content.includes(templateName)) {
-                // 笔记是昨天修改的
+            let note_type = null;
+            for (const key in keyNames){
+                if (content.includes(key.trim())){
+                    note_type = keyNames[key];
+                    break;
+                }
+            }
+            const parentTitle = note.parentItem ? note.parentItem.getField('title') : 'untitled';
+            lengths.push([parentTitle,content.length,note_type]);
+            if (note_type!=null){
                 export_notes.push(note);
-                lengths.push([note.parentItem.getField('title'),content.length]);
                 if (content.length > min_length){
-                    await writeNoteContent(note, all_note_dir);
-                    if ((dateModified>last_save_time || ignore_last_save_time)) {
+                    await writeNoteContent(note, note_type, all_note_dir+"/"+parentTitle);
+                    if (dateModified>last_save_time || ignore_last_save_time) {
                         
                         // 保存目录的逻辑：  可以就保存到一个目录里，然后整体打包导入wolai，导入后这些都移除，
                         // 下次保存就是那些增量的，导入就少了
-                        await writeNoteContent(note, new_note_dir);
+                        await writeNoteContent(note, note_type, new_note_dir+"/"+parentTitle);
                     }
                 }
             }
+        } catch (error) {
+            Zotero.debug(`处理笔记时出错: ${error.message}`);
         }
-    } catch (error) {
-        Zotero.debug(`处理笔记时出错: ${error.message}`);
     }
+
     return lengths;
     return export_notes;
 }
@@ -161,4 +173,6 @@ if (item==null){
     const now = new Date();
     const encoder = new TextEncoder();
     await IOUtils.write(last_save_time_path, encoder.encode(now.toISOString()));
+    return result;
+    
 }
