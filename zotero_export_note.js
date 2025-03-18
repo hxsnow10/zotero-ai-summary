@@ -13,7 +13,7 @@ let notewrite_dir = "/home/xiahong/文档/zotero_notes"
 let last_save_time_path = "/home/xiahong/文档/zotero_notes/last_save_time.txt";
 let last_save_time = Zotero.File.getContents(last_save_time_path);
 
-let ignore_last_save_time = true;
+let ignore_last_save_time = false;
 const min_length = 3000;
 
 function getYesterday(){
@@ -121,7 +121,8 @@ async function writeNoteContent(note, note_type, directory) {
 
 // 使用示例
 async function processNotes() {
-    let export_notes = [];
+    let all_export_notes = [];
+    let new_export_notes = [];
     let lengths = [];
 
     const notes = await getAllNotes();
@@ -144,14 +145,19 @@ async function processNotes() {
             const parentTitle = note.parentItem ? note.parentItem.getField('title') : 'untitled';
             lengths.push([parentTitle,content.length,note_type]);
             if (note_type!=null){
-                export_notes.push(note);
+                
                 if (content.length > min_length){
-                    await writeNoteContent(note, note_type, all_note_dir+"/"+parentTitle);
+                    if (ignore_last_save_time){
+                        all_export_notes.push(note);
+                        await writeNoteContent(note, note_type, all_note_dir+"/"+parentTitle);
+                    }
+                    // await writeNoteContent(note, note_type, all_note_dir+"/"+parentTitle);
                     if (dateModified>last_save_time || ignore_last_save_time) {
-                        
                         // 保存目录的逻辑：  可以就保存到一个目录里，然后整体打包导入wolai，导入后这些都移除，
                         // 下次保存就是那些增量的，导入就少了
+                        new_export_notes.push(note);
                         await writeNoteContent(note, note_type, new_note_dir+"/"+parentTitle);
+                        await writeNoteContent(note, note_type, all_note_dir+"/"+parentTitle);
                     }
                 }
             }
@@ -160,19 +166,50 @@ async function processNotes() {
         }
     }
 
-    return lengths;
-    return export_notes;
+    
+    return [all_export_notes,new_export_notes];
+}
+
+function checkDate(){
+    // 获取当前时间
+    let now = new Date();
+
+    // 将目标时间字符串转换为 Date 对象
+    let targetDate = new Date(last_save_time);
+
+    // 计算两个时间之间的差值（以毫秒为单位）
+    let difference = Math.abs(targetDate - now);
+
+    // 将差值转换为天数
+    let daysDifference = difference / (1000 * 60 * 60 * 24);
+
+    // 判断是否相差7天以上
+    if (daysDifference >= 7) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 
-if (item==null){
-    let result = await processNotes();
-    result.sort((a,b)=>b[1]-a[1]);
+async function process(){
+    // 距离上次相差7天以上才会执行
+    if (!checkDate() && !ignore_last_save_time) {
+        return "距离上次保存不足7天，跳过";
+    }
+
+    let [all_export_notes,new_export_notes] = await processNotes();
+    // result.sort((a,b)=>b[1]-a[1]);
 
     // 写入文件
     const now = new Date();
     const encoder = new TextEncoder();
     await IOUtils.write(last_save_time_path, encoder.encode(now.toISOString()));
-    return result;
-    
+    return "一共导出 ${all_export_note}个note->all, ${new_export_notes}个note->new";
+}
+
+if (typeof item == "undefined"||  item==null){
+    return await process();
+} else {
+    return;
 }
