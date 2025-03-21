@@ -6,13 +6,13 @@
     "llm": {
         "openaiBaseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "modelName": "qwen-plus-latest",
-        "apiKey": "sk-xxxx",
-        "temperature": 0.7
+        "apiKey": "sk-262b703289bf41a2bdc3ee36427dfbfb",
+        "temperature": 0.8
     },
     "summary": {
         "chunkSize": 64000,
         "chunkOverlap": 1000,
-        "maxChunk": 5,
+        "maxChunk": 50,
         "only_link_file": false,
         "support_item_types": [
             "preprint",
@@ -22,5 +22,8 @@
             "manuscript",
             "thesis"
         ]
+    },
+    "qa": {
+        "saveColelctionKey":  "IV5MQ9HV"
     }
 }

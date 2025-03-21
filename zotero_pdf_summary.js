@@ -9,6 +9,7 @@
 // TODO：生成摘要的时候，最好还能保留这个对话环境，方便后续的交互问答  pdfask
 // 每次打开文本都生成一次吗？ 这还是得手动触发吧。有需要问答的时候，触发一次上传，然后交互即可。
 // 记录时间
+// 记得提取source_code等关键字段
 
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
